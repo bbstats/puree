@@ -16,7 +16,7 @@ var PROTEINS = ['Beef', 'Chicken', 'Pork', 'Fish', 'Vegetarian', 'Other'];
 var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Public site that serves the app UI (set once GitHub Pages is live)
-var SITE_URL = 'SITE_URL_PLACEHOLDER';
+var SITE_URL = 'https://bbstats.github.io/meal-planner/';
 
 // ---------------------------------------------------------------- web app
 

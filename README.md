@@ -3,18 +3,27 @@
 A tiny web app for planning the week's dinners and tracking the pantry, backed entirely by a
 Google Sheet — free, no servers, and the "database" is a spreadsheet you can edit by hand.
 
-Works on Android (Chrome → "Add to Home screen") and any laptop browser. One shared pantry:
-anyone with the app link sees and edits the same data.
+Works on Android (Chrome → "Add to Home screen") and any laptop browser. One shared pantry
+per household: anyone with the household's app link sees and edits the same data.
+
+**Architecture (two halves):**
+- **UI**: a static site at https://bbstats.github.io/meal-planner/ (this repo's `docs/`
+  folder via GitHub Pages). It stores no data; each device connects it to a household's
+  own endpoint (`?app=<exec-url>` link or paste box, kept in localStorage).
+- **Data**: each household's own Google spreadsheet with the bound Apps Script in this
+  repo, deployed as an anonymous web app that answers JSON (`doPost` in `Code.js`).
+  Households are fully independent — see `SHARE.md` for the copy-the-template setup.
 
 ## What's in here
 
 | File | Purpose |
 |---|---|
+| `docs/` | The static site (GitHub Pages): `index.html`, `app.js`, `styles.css`, PWA manifest + icons |
 | `appsscript.json` | Apps Script manifest (web app config) |
-| `Code.js` | Server: spreadsheet setup + read/write API (appears as `Code.gs` in the editor) |
-| `index.html` | Page shell (tabs, popups) |
-| `styles.html` | Styles |
-| `app-js.html` | Frontend logic |
+| `Code.js` | Server: spreadsheet setup, JSON API (`doPost`), guided-setup menu (appears as `Code.gs` in the editor) |
+| `sidebar.html` | In-spreadsheet setup helper (deploy steps + app-link generator) |
+| `index.html` / `styles.html` / `app-js.html` | Legacy HtmlService version of the UI, still served at the `/exec` URL as a fallback (shows Google's banner) |
+| `SHARE.md` | Novice-friendly instructions for setting up your own household |
 
 ## Setup — option A: clasp (recommended, keeps code in this folder)
 
