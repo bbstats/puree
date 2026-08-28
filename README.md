@@ -1,4 +1,4 @@
-# Household Meal Planner
+# Puree — household meal planner
 
 A tiny web app for planning the week's dinners and tracking the pantry, backed entirely by a
 Google Sheet — free, no servers, and the "database" is a spreadsheet you can edit by hand.
@@ -7,7 +7,7 @@ Works on Android (Chrome → "Add to Home screen") and any laptop browser. One s
 per household: anyone with the household's app link sees and edits the same data.
 
 **Architecture (two halves):**
-- **UI**: a static site at https://bbstats.github.io/meal-planner/ (this repo's `docs/`
+- **UI**: a static site at https://bbstats.github.io/puree/ (this repo's `docs/`
   folder via GitHub Pages). It stores no data; each device connects it to a household's
   own endpoint (`?app=<exec-url>` link or paste box, kept in localStorage).
 - **Data**: each household's own Google spreadsheet with the bound Apps Script in this

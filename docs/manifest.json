@@ -1,6 +1,6 @@
 {
-  "name": "Meal Planner",
-  "short_name": "Meals",
+  "name": "Puree",
+  "short_name": "Puree",
   "description": "Household dinner planning and pantry tracking",
   "start_url": "./",
   "display": "standalone",

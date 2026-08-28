@@ -16,7 +16,7 @@ var PROTEINS = ['Beef', 'Chicken', 'Pork', 'Fish', 'Vegetarian', 'Other'];
 var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // Public site that serves the app UI (set once GitHub Pages is live)
-var SITE_URL = 'https://bbstats.github.io/meal-planner/';
+var SITE_URL = 'https://bbstats.github.io/puree/';
 
 // ---------------------------------------------------------------- web app
 
@@ -36,7 +36,7 @@ function include(filename) {
 // (a "simple" request, so no CORS preflight, which Apps Script can't answer).
 
 var API = {
-  ping: function () { return { ok: true, app: 'meal-planner' }; },
+  ping: function () { return { ok: true, app: 'puree' }; },
   getAllData: function () { return getAllData(); },
   saveStatuses: function (changes) { return saveStatuses(changes); },
   planMeal: function (recipeName, choice, allowReplace) { return planMeal(recipeName, choice, allowReplace); },
@@ -61,7 +61,7 @@ function doPost(e) {
 // ---------------------------------------------------------------- guided setup menu
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('🍽️ Meal Planner')
+  SpreadsheetApp.getUi().createMenu('🍽️ Puree')
     .addItem('Finish setup', 'finishSetup')
     .addItem('Setup helper (get my app link)', 'showSidebar')
     .addSeparator()
@@ -110,7 +110,7 @@ function checkAppUrl(url) {
       followRedirects: true
     });
     var data = JSON.parse(resp.getContentText());
-    if (data && data.app === 'meal-planner') {
+    if (data && (data.app === 'puree' || data.app === 'meal-planner')) {
       return { ok: true, link: SITE_URL + '?app=' + encodeURIComponent(url) };
     }
     return { ok: false, reason: 'That URL responded, but not with this app. Double-check you copied the "Web app" URL from the deploy dialog.' };

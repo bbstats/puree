@@ -583,7 +583,7 @@
     call('ping').then(function (r) {
       btn.disabled = false;
       btn.textContent = 'Connect';
-      if (r && r.app === 'meal-planner') {
+      if (r && (r.app === 'puree' || r.app === 'meal-planner')) {
         storeUrl(url);
         startApp();
       } else {

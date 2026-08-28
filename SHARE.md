@@ -1,4 +1,6 @@
-# Get your own Meal Planner (free, ~10 minutes)
+# Get your own Puree (free, ~10 minutes)
+
+*Puree — plan your week's dinners and keep track of what's in the pantry.*
 
 Your meal data lives in **your own** Google spreadsheet — nobody else can see it.
 You'll copy the template, click a few buttons, and end up with a private app link
@@ -11,10 +13,10 @@ for your household.
 ## Steps
 
 1. **Copy the template.** Open the "Make a copy" link you were given and click
-   **Make a copy**. You now own a spreadsheet called "Copy of Meal Planner Template" —
+   **Make a copy**. You now own a spreadsheet called "Copy of Puree Template" —
    rename it if you like.
 
-2. **Run setup.** In your new spreadsheet's menu bar, click **🍽️ Meal Planner →
+2. **Run setup.** In your new spreadsheet's menu bar, click **🍽️ Puree →
    Finish setup**. (If you don't see the menu, wait a few seconds and reload the page.)
    - Google will ask for permission. You'll see a scary "Google hasn't verified this app"
      screen — that's normal for personal scripts. Click **Advanced → Go to … (unsafe) →
@@ -41,5 +43,5 @@ for your household.
 ## FAQ
 - **"Anyone" access?!** The URL contains a ~70-character random key — nobody finds it
   without you sharing it. It also can only read/write this one spreadsheet.
-- **Something broke?** 🍽️ Meal Planner → **Start fresh** resets the spreadsheet to the
+- **Something broke?** 🍽️ Puree → **Start fresh** resets the spreadsheet to the
   example data.
