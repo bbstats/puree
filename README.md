@@ -14,6 +14,17 @@ per household: anyone with the household's app link sees and edits the same data
   repo, deployed as an anonymous web app that answers JSON (`doPost` in `Code.js`).
   Households are fully independent — see `SHARE.md` for the copy-the-template setup.
 
+## Deploying a change
+
+- **Site (`docs/`)**: commit and push — GitHub Pages rebuilds in ~1 minute. GitHub serves
+  assets with `max-age=600`, so **bump the `?v=` on the `styles.css` / `app.js` tags in
+  `docs/index.html`** whenever you change them, or phones will run stale code for up to
+  10 minutes.
+- **Server (`Code.js` etc.)**: `clasp push -f` then
+  `clasp deploy --deploymentId <id>` to update the same `/exec` URL.
+  Run clasp from `C:\Users\Nathan\Documents\puree` (capital D — clasp rejects the
+  lowercase path as a symlink).
+
 ## What's in here
 
 | File | Purpose |
