@@ -27,6 +27,7 @@
   var mealEdits = {};         // ingredient name -> status (local edits in detail view)
   var mealOrder = [];         // snapshot ordering of detail ingredient list
   var cameFrom = 'meals';
+  var pendingDay = null;      // day tapped from an empty Week slot; preselects it when planning
   var savingCount = 0;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -109,6 +110,8 @@
   // ------------------------------------------------------------ navigation
 
   function switchTab(tab) {
+    // A day tapped in Week only stays "pending" while picking a meal for it
+    if (tab !== 'meals' && tab !== 'meal') pendingDay = null;
     currentTab = tab;
     ['pantry', 'meals', 'week', 'shop', 'meal'].forEach(function (v) {
       $('view-' + v).hidden = (v !== tab);
@@ -390,10 +393,12 @@
     db.week.forEach(function (e) { plannedByDate[e.date] = e.recipe; });
 
     $('planOptions').innerHTML =
-      '<label><input type="radio" name="planDay" value="auto" checked> ✨ Choose for me</label>' +
+      '<label><input type="radio" name="planDay" value="auto"' +
+        (pendingDay ? '' : ' checked') + '> ✨ Choose for me</label>' +
       db.weekDates.map(function (w) {
         var taken = plannedByDate[w.date];
-        return '<label><input type="radio" name="planDay" value="' + w.day + '">' +
+        return '<label><input type="radio" name="planDay" value="' + w.day + '"' +
+          (w.day === pendingDay ? ' checked' : '') + '>' +
           w.day + ' ' + shortDate(w.date) +
           (taken ? '<span class="taken">' + esc(taken) + '</span>' : '') +
           '</label>';
@@ -448,7 +453,8 @@
           (r && r.prepTime ? '<div class="sub">⏱ ' + r.prepTime + ' min · ' + esc(r.dishCategory) + '</div>' : '') +
           '</div><button class="x-btn" data-date="' + w.date + '" title="Remove">✕</button>';
       } else {
-        mid = '<div class="week-empty">Nothing planned — pick from Meals</div>';
+        mid = '<div class="week-empty" data-day="' + w.day + '" data-date="' + w.date +
+          '">Nothing planned — tap to pick a meal</div>';
       }
       return '<div class="row week-day' + (isToday ? ' today-row' : '') + '">' +
         '<div class="day-label"><b>' + w.day + '</b><small>' + shortDate(w.date) + '</small></div>' +
@@ -457,6 +463,13 @@
 
     view.querySelectorAll('.week-meal').forEach(function (el) {
       el.addEventListener('click', function () { openMeal(el.dataset.recipe, 'week'); });
+    });
+    view.querySelectorAll('.week-empty').forEach(function (el) {
+      el.addEventListener('click', function () {
+        pendingDay = el.dataset.day;
+        switchTab('meals');
+        toast('Pick a meal for ' + el.dataset.day + ' ' + shortDate(el.dataset.date));
+      });
     });
     view.querySelectorAll('.x-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
