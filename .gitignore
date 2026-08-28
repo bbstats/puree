@@ -1,0 +1,3 @@
+# Account-specific Apps Script config — each person gets their own via clasp
+.clasp.json
+node_modules/

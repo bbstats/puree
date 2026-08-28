@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#2f6f4f">
+  <title>Meal Planner</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body>
+  <!-- First-run: connect this device to your household's own app -->
+  <div id="connect" hidden>
+    <div class="connect-card">
+      <h1>🍽️ Meal Planner</h1>
+      <p>This site is just the screen — your food data lives in <b>your own</b> Google
+        spreadsheet. Paste your household's app URL to connect this device:</p>
+      <input type="text" id="connectUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+      <button class="btn primary wide" id="connectBtn">Connect</button>
+      <div id="connectError" class="connect-error" hidden></div>
+      <p class="connect-help">Don't have one yet? <a href="https://github.com/SITE_REPO_PLACEHOLDER#get-your-own" target="_blank" rel="noopener">Set up your own in ~10 minutes</a> — it's free.</p>
+    </div>
+  </div>
+
+  <div id="app" hidden>
+    <header id="topbar">
+      <h1 id="viewTitle">Pantry</h1>
+      <span id="saving" hidden>Saving…</span>
+    </header>
+
+    <main id="main">
+      <section id="view-pantry" class="view"></section>
+      <section id="view-meals" class="view" hidden></section>
+      <section id="view-week" class="view" hidden></section>
+      <section id="view-shop" class="view" hidden></section>
+      <section id="view-meal" class="view" hidden></section>
+    </main>
+
+    <nav id="tabbar">
+      <button class="tab active" data-tab="pantry">🧺<span>Pantry</span></button>
+      <button class="tab" data-tab="meals">🍽️<span>Meals</span></button>
+      <button class="tab" data-tab="week">📅<span>Week</span></button>
+      <button class="tab" data-tab="shop">🛒<span>Needed</span></button>
+    </nav>
+  </div>
+
+  <!-- Plan-day popup -->
+  <div id="overlay" hidden>
+    <div id="planModal" class="modal" hidden>
+      <h2>Plan <span id="planRecipeName"></span></h2>
+      <div id="planOptions" class="radio-list"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="planCancel">Cancel</button>
+        <button class="btn primary" id="planConfirm">Plan it</button>
+      </div>
+    </div>
+
+    <!-- Add-ingredient popup -->
+    <div id="addModal" class="modal" hidden>
+      <h2>Add ingredient</h2>
+      <input type="text" id="addName" placeholder="Ingredient name" autocomplete="off">
+      <select id="addCategory"></select>
+      <div class="modal-actions">
+        <button class="btn ghost" id="addCancel">Cancel</button>
+        <button class="btn primary" id="addConfirm">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loading" hidden><div class="spinner"></div><p>Loading your kitchen…</p></div>
+  <div id="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

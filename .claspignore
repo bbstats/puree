@@ -1,0 +1,6 @@
+# Only the Apps Script project files belong in the script push
+docs/**
+node_modules/**
+README.md
+SHARE.md
+.git/**

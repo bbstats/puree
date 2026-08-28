@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 13px;
+           color: #23211d; margin: 0; padding: 14px; }
+    h2 { font-size: 15px; margin: 0 0 10px; }
+    ol { padding-left: 18px; margin: 8px 0; }
+    li { margin-bottom: 7px; line-height: 1.45; }
+    b { color: #2f6f4f; }
+    .box { border: 1px solid #e6e3dc; border-radius: 10px; padding: 10px; margin: 12px 0; }
+    input[type=text] { width: 100%; box-sizing: border-box; padding: 8px;
+      border: 1px solid #e6e3dc; border-radius: 8px; font-size: 12px; margin: 6px 0; }
+    button { background: #2f6f4f; color: #fff; border: 0; border-radius: 8px;
+      padding: 9px 14px; font-weight: 600; cursor: pointer; font-size: 13px; }
+    button:disabled { opacity: .5; }
+    .ok { background: #e2f2e6; color: #1d6b35; border-radius: 8px; padding: 10px;
+      margin-top: 10px; word-break: break-all; }
+    .err { background: #fbe2de; color: #a13224; border-radius: 8px; padding: 10px; margin-top: 10px; }
+    a { color: #2f6f4f; }
+    .muted { color: #7a766e; }
+  </style>
+</head>
+<body>
+  <h2>✅ Your spreadsheet is set up!</h2>
+  <p class="muted">One last one-time step: publish your own private copy of the app.</p>
+
+  <div class="box">
+    <b>Publish it (about 1 minute):</b>
+    <ol>
+      <li>Open <b>Extensions → Apps Script</b> from the menu of this spreadsheet.</li>
+      <li>Top-right, click the blue <b>Deploy</b> button → <b>New deployment</b>.</li>
+      <li>Click the ⚙️ gear next to "Select type" → choose <b>Web app</b>.</li>
+      <li>Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. (The link is unguessable — only people you share it with will ever find it.)</li>
+      <li>Click <b>Deploy</b>. If Google asks for permissions: <b>Review → your account → Advanced → Go to … (unsafe) → Allow</b>. That warning just means it's your own personal script, not a Google-reviewed store app.</li>
+      <li>Copy the <b>Web app URL</b> it shows (ends in <span class="muted">/exec</span>) and paste it below.</li>
+    </ol>
+  </div>
+
+  <div class="box">
+    <b>Paste your Web app URL:</b>
+    <input type="text" id="url" placeholder="https://script.google.com/macros/s/…/exec">
+    <button id="check">Check &amp; get my app link</button>
+    <div id="result"></div>
+  </div>
+
+  <p class="muted">You can reopen this helper anytime: 🍽️ Meal Planner → Setup helper.</p>
+
+  <script>
+    var btn = document.getElementById('check');
+    var result = document.getElementById('result');
+
+    google.script.run.withSuccessHandler(function (info) {
+      if (info.execUrl) document.getElementById('url').value = info.execUrl;
+    }).getSetupInfo();
+
+    btn.onclick = function () {
+      btn.disabled = true;
+      result.innerHTML = '<span class="muted">Checking…</span>';
+      google.script.run
+        .withSuccessHandler(function (r) {
+          btn.disabled = false;
+          if (r.ok) {
+            result.innerHTML = '<div class="ok">🎉 It works! Your personal app link:<br><br>' +
+              '<a href="' + r.link + '" target="_blank">' + r.link + '</a><br><br>' +
+              'Open it on your phone and use Chrome\'s <b>⋮ → Add to Home screen</b>. ' +
+              'Share this link with everyone in your house.</div>';
+          } else {
+            result.innerHTML = '<div class="err">' + r.reason + '</div>';
+          }
+        })
+        .withFailureHandler(function (e) {
+          btn.disabled = false;
+          result.innerHTML = '<div class="err">Error: ' + e.message + '</div>';
+        })
+        .checkAppUrl(document.getElementById('url').value);
+    };
+  </script>
+</body>
+</html>
