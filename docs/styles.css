@@ -146,6 +146,11 @@ body {
 .detail-top { display: flex; align-items: center; gap: 6px; padding: 2px 0 10px; }
 .back-btn { border: 0; background: none; font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0; color: var(--ink); }
 .detail-top h2 { margin: 0; font-size: 20px; }
+.edit-btn {
+  margin-left: auto; flex-shrink: 0; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--card); color: var(--ink); cursor: pointer;
+  font-size: 13px; font-weight: 600; padding: 6px 12px;
+}
 .recipe-link {
   display: block; text-align: center; text-decoration: none;
   background: var(--accent); color: var(--accent-ink);

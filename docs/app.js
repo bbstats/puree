@@ -29,6 +29,8 @@
   var cameFrom = 'meals';
   var pendingDay = null;      // day tapped from an empty Week slot; preselects it when planning
   var draft = null;           // in-progress new recipe (kept until saved or cancelled)
+  var form = null;            // what the recipe form shows: draft, or an edit copy ({editing: oldName, ...})
+  var formStart = '';         // form as first shown, to tell whether it changed
   var editingIng = null;      // pantry name being edited in the edit popup
   var savingCount = 0;
 
@@ -397,18 +399,50 @@
         ingredients: []
       };
     }
+    showForm(draft);
+  }
+
+  function openEditForm() {
+    saveMealEdits(false); // keep any pill taps made on the meal screen
+    var r = openRecipe;
+    showForm({
+      editing: r.name,
+      name: r.name, link: r.link, prepTime: r.prepTime ? String(r.prepTime) : '',
+      dishCategory: r.dishCategory, protein: r.protein,
+      ingredients: r.ingredients.slice()
+    });
+  }
+
+  function showForm(f) {
+    form = f;
+    formStart = JSON.stringify(f);
     switchTab('recipe');
   }
 
-  function draftIsEmpty() {
-    return !draft || (!draft.name && !draft.link && !draft.prepTime && !draft.ingredients.length);
+  function leaveForm() {
+    var editing = form && form.editing;
+    form = null;
+    switchTab(editing ? 'meal' : 'meals');
+  }
+
+  function formIsEmpty() {
+    return !form.name && !form.link && !form.prepTime && !form.ingredients.length;
+  }
+  function formChanged() {
+    return !!form && JSON.stringify(form) !== formStart;
+  }
+
+  /** list, plus value if it's missing (e.g. a cuisine typed straight into the Sheet). */
+  function withValue(list, value) {
+    return value && list.indexOf(value) === -1 ? list.concat([value]) : list;
   }
 
   function renderRecipeForm() {
     var view = $('view-recipe');
-    if (!draft) { view.innerHTML = ''; return; }
+    if (!form) { view.innerHTML = ''; return; }
     view.innerHTML =
-      '<div class="detail-top"><button class="back-btn" id="rfBack">←</button><h2>New recipe</h2></div>' +
+      '<div class="detail-top"><button class="back-btn" id="rfBack">←</button>' +
+        '<h2>' + (form.editing ? 'Edit recipe' : 'New recipe') + '</h2></div>' +
       '<div class="card form-card">' +
         '<label class="field"><span>Name</span>' +
           '<input type="text" id="rfName" autocomplete="off" placeholder="e.g. Chicken Tacos"></label>' +
@@ -418,9 +452,9 @@
           '<label class="field"><span>Prep (min)</span>' +
             '<input type="number" id="rfPrep" inputmode="numeric" min="0" step="5"></label>' +
           '<label class="field"><span>Cuisine</span>' +
-            selectHtml('rfCat', db.lists.dishCategories, draft.dishCategory) + '</label>' +
+            selectHtml('rfCat', withValue(db.lists.dishCategories, form.dishCategory), form.dishCategory) + '</label>' +
           '<label class="field"><span>Protein</span>' +
-            selectHtml('rfProt', db.lists.proteins, draft.protein) + '</label>' +
+            selectHtml('rfProt', withValue(db.lists.proteins, form.protein), form.protein) + '</label>' +
         '</div>' +
       '</div>' +
       '<div class="group-head">Ingredients</div>' +
@@ -432,21 +466,18 @@
       '</div>' +
       '<div class="detail-actions">' +
         '<button class="btn ghost" id="rfCancel">Cancel</button>' +
-        '<button class="btn primary" id="rfSave">Save recipe</button>' +
+        '<button class="btn primary" id="rfSave">' + (form.editing ? 'Save changes' : 'Save recipe') + '</button>' +
       '</div>';
 
     // Values go in via .value so nothing typed needs HTML escaping
-    $('rfName').value = draft.name;
-    $('rfLink').value = draft.link;
-    $('rfPrep').value = draft.prepTime;
-    $('rfName').oninput = function () { draft.name = this.value; };
-    $('rfLink').oninput = function () { draft.link = this.value; };
-    $('rfPrep').oninput = function () { draft.prepTime = this.value; };
-    // If a saved choice was since removed from the Lists tab, keep what's on screen
-    draft.dishCategory = $('rfCat').value;
-    draft.protein = $('rfProt').value;
-    $('rfCat').onchange = function () { draft.dishCategory = this.value; };
-    $('rfProt').onchange = function () { draft.protein = this.value; };
+    $('rfName').value = form.name;
+    $('rfLink').value = form.link;
+    $('rfPrep').value = form.prepTime;
+    $('rfName').oninput = function () { form.name = this.value; };
+    $('rfLink').oninput = function () { form.link = this.value; };
+    $('rfPrep').oninput = function () { form.prepTime = this.value; };
+    $('rfCat').onchange = function () { form.dishCategory = this.value; };
+    $('rfProt').onchange = function () { form.protein = this.value; };
 
     var ingInput = $('rfIng');
     ingInput.oninput = function () {
@@ -469,11 +500,16 @@
       }
     };
 
-    $('rfBack').onclick = function () { switchTab('meals'); };
+    // Back keeps a new-recipe draft for later; an edit is just abandoned
+    $('rfBack').onclick = function () {
+      if (form.editing && formChanged() && !confirm('Discard your changes?')) return;
+      leaveForm();
+    };
     $('rfCancel').onclick = function () {
-      if (!draftIsEmpty() && !confirm('Discard this recipe?')) return;
-      draft = null;
-      switchTab('meals');
+      var dirty = form.editing ? formChanged() : !formIsEmpty();
+      if (dirty && !confirm(form.editing ? 'Discard your changes?' : 'Discard this recipe?')) return;
+      if (!form.editing) draft = null;
+      leaveForm();
     };
     $('rfSave').onclick = saveRecipe;
 
@@ -487,15 +523,15 @@
     if (!name) return false;
     var known = findIngredient(name);
     if (known) name = known.name;
-    var dup = draft.ingredients.some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
-    if (!dup) draft.ingredients.push(name);
+    var dup = form.ingredients.some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
+    if (!dup) form.ingredients.push(name);
     return true;
   }
 
   function renderDraftChips() {
     var box = $('rfChips');
-    box.innerHTML = draft.ingredients.length
-      ? draft.ingredients.map(function (n, idx) {
+    box.innerHTML = form.ingredients.length
+      ? form.ingredients.map(function (n, idx) {
           var isNew = !findIngredient(n);
           return '<button class="ing-chip' + (isNew ? ' new' : '') + '" data-idx="' + idx + '" title="Remove">' +
             esc(n) + (isNew ? ' <small>new</small>' : '') + ' <span class="x">✕</span></button>';
@@ -503,7 +539,7 @@
       : '<div class="hint">No ingredients yet. Pick from your pantry or type new ones.</div>';
     box.querySelectorAll('.ing-chip').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        draft.ingredients.splice(Number(btn.dataset.idx), 1);
+        form.ingredients.splice(Number(btn.dataset.idx), 1);
         renderDraftChips();
         renderSuggestions();
       });
@@ -515,7 +551,7 @@
     var q = $('rfIng').value.replace(/\s+/g, ' ').trim().toLowerCase();
     if (!q) { box.innerHTML = ''; return; }
     var chosen = {};
-    draft.ingredients.forEach(function (n) { chosen[n.toLowerCase()] = true; });
+    form.ingredients.forEach(function (n) { chosen[n.toLowerCase()] = true; });
     var matches = db.ingredients.filter(function (i) {
       var k = i.name.toLowerCase();
       return !chosen[k] && k.indexOf(q) !== -1;
@@ -545,46 +581,62 @@
   function saveRecipe() {
     // Anything still sitting in the ingredient box counts
     if (addDraftIngredient($('rfIng').value)) $('rfIng').value = '';
-    var name = draft.name.replace(/\s+/g, ' ').trim();
+    var name = form.name.replace(/\s+/g, ' ').trim();
     if (!name) {
       toast('Give the recipe a name');
       $('rfName').focus();
       return;
     }
-    var taken = db.recipes.filter(function (r) { return r.name.toLowerCase() === name.toLowerCase(); })[0];
+    var editing = form.editing;
+    var taken = db.recipes.filter(function (r) {
+      return r.name.toLowerCase() === name.toLowerCase() && r.name !== editing;
+    })[0];
     if (taken) {
       toast('"' + taken.name + '" already exists');
       return;
     }
-    var link = draft.link.trim();
+    var link = form.link.trim();
     if (link && !/^[a-z][a-z0-9+.-]*:/i.test(link)) link = 'https://' + link;
 
     var btn = $('rfSave');
     btn.disabled = true;
     btn.textContent = 'Saving…';
-    var done = function () { btn.disabled = false; btn.textContent = 'Save recipe'; };
-    call('addRecipe', {
+    var label = btn.textContent;
+    var done = function () { btn.disabled = false; btn.textContent = label; };
+    var recipe = {
       name: name,
       link: link,
-      prepTime: draft.prepTime,
-      dishCategory: draft.dishCategory,
-      protein: draft.protein,
-      ingredients: draft.ingredients
-    }).then(function (r) {
+      prepTime: form.prepTime,
+      dishCategory: form.dishCategory,
+      protein: form.protein,
+      ingredients: form.ingredients
+    };
+    var req = editing ? call('updateRecipe', editing, recipe) : call('addRecipe', recipe);
+    req.then(function (r) {
       done();
       if (r && r.ok) {
-        db.recipes.push(r.recipe);
+        if (editing) {
+          db.recipes = db.recipes.map(function (x) { return x.name === editing ? r.recipe : x; });
+          db.week.forEach(function (e) { if (e.recipe === editing) e.recipe = r.recipe.name; });
+        } else {
+          db.recipes.push(r.recipe);
+          draft = null;
+        }
         (r.added || []).forEach(function (n) {
           if (!findIngredient(n)) db.ingredients.push({ name: n, category: 'Uncategorized', status: 'Have It' });
         });
-        draft = null;
+        form = null;
         toast(r.added && r.added.length
           ? 'Saved! ' + r.added.length + ' new ingredient' + (r.added.length === 1 ? '' : 's') +
             ' added to Pantry as Uncategorized'
           : 'Saved ' + r.recipe.name);
-        openMeal(r.recipe.name, 'meals');
+        openMeal(r.recipe.name, editing ? cameFrom : 'meals');
       } else if (r && r.reason === 'exists') {
         toast('"' + name + '" already exists');
+      } else if (r && r.reason === 'missing') {
+        toast('That recipe was renamed or removed in the Sheet — reloading');
+        form = null;
+        resync().then(function () { switchTab('meals'); });
       } else {
         toast('Could not save — try again');
       }
@@ -616,11 +668,12 @@
 
     var linkHtml = r.link
       ? '<a class="recipe-link" href="' + esc(r.link) + '" target="_blank" rel="noopener">📖 Open Recipe</a>'
-      : '<span class="recipe-link disabled">No recipe link yet — add one in the Sheet</span>';
+      : '<span class="recipe-link disabled">No recipe link yet — tap Edit to add one</span>';
 
     view.innerHTML =
       '<div class="detail-top"><button class="back-btn" id="mealBack">←</button>' +
-      '<h2>' + esc(r.name) + '</h2></div>' +
+      '<h2>' + esc(r.name) + '</h2>' +
+      '<button class="edit-btn" id="mealEdit">✎ Edit</button></div>' +
       linkHtml +
       '<div class="meal-meta" style="padding:0 2px 12px">' +
         (r.prepTime ? '<span class="chip">⏱ ' + r.prepTime + ' min</span>' : '') +
@@ -639,6 +692,7 @@
       '</div>';
 
     $('mealBack').onclick = function () { switchTab(cameFrom); };
+    $('mealEdit').onclick = openEditForm;
     $('mealSave').onclick = function () { saveMealEdits(true); };
     $('mealPlan').onclick = openPlanModal;
     view.querySelectorAll('.pill[data-ing]').forEach(function (btn) {

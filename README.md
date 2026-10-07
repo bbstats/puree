@@ -130,7 +130,9 @@ and it shows up everywhere — no code changes.
 - **Meals** — filter by cuisine/protein, sort by prep time. **+ Add recipe** (bottom of the
   list) takes a name, optional link, prep time, cuisine, protein, and ingredients — pick
   them from your pantry as you type, or type new ones (they join the pantry as
-  Uncategorized / Have It). An unfinished recipe is kept until you save or cancel it. Each card shows how many
+  Uncategorized / Have It). An unfinished recipe is kept until you save or cancel it.
+  On a meal's screen, **✎ Edit** opens the same form to fix anything; renaming a recipe
+  carries the new name into the Week tab. Each card shows how many
   ingredients you're missing. Tap a meal: recipe link at the very top, ingredients listed
   most-needed first, tap pills to adjust availability. **Save** updates the pantry;
   **Plan** updates the pantry *and* asks which day — "Choose for me" (default) picks a

@@ -43,7 +43,8 @@ var API = {
   unplanMeal: function (date) { return unplanMeal(date); },
   addIngredient: function (name, category) { return addIngredient(name, category); },
   updateIngredient: function (oldName, newName, category) { return updateIngredient(oldName, newName, category); },
-  addRecipe: function (recipe) { return addRecipe(recipe); }
+  addRecipe: function (recipe) { return addRecipe(recipe); },
+  updateRecipe: function (oldName, recipe) { return updateRecipe(oldName, recipe); }
 };
 
 function doPost(e) {
@@ -543,73 +544,147 @@ function renameInRecipes_(ss, oldKey, newName) {
  * the pantry as Uncategorized / Have It.
  */
 function addRecipe(recipe) {
-  recipe = recipe || {};
-  var name = cleanText_(recipe.name);
-  if (!name) return { ok: false, reason: 'empty' };
-  var link = cleanText_(recipe.link);
-  var prep = Math.round(Number(recipe.prepTime));
-  if (!(prep > 0)) prep = '';
-  var dish = cleanText_(recipe.dishCategory) || 'Other';
-  var protein = cleanText_(recipe.protein) || 'Other';
-
+  var r = cleanRecipe_(recipe);
+  if (!r.name) return { ok: false, reason: 'empty' };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     var ss = SpreadsheetApp.getActive();
     var rec = ss.getSheetByName(SHEET_REC);
-    if (rec.getLastRow() >= 2) {
-      var existing = rec.getRange(2, 1, rec.getLastRow() - 1, 1).getValues();
-      for (var i = 0; i < existing.length; i++) {
-        if (String(existing[i][0]).trim().toLowerCase() === name.toLowerCase()) {
-          return { ok: false, reason: 'exists' };
-        }
-      }
-    }
-
-    var ing = ss.getSheetByName(SHEET_ING);
-    var pantry = {}; // lowercase -> pantry spelling
-    if (ing.getLastRow() >= 2) {
-      ing.getRange(2, 1, ing.getLastRow() - 1, 1).getValues().forEach(function (r) {
-        var n = String(r[0]).trim();
-        if (n) pantry[n.toLowerCase()] = n;
-      });
-    }
-    var ingredients = [];
-    var added = [];
-    var seen = {};
-    (recipe.ingredients || []).forEach(function (raw) {
-      var n = cleanText_(raw).replace(/,/g, '');
-      var key = n.toLowerCase();
-      if (!n || seen[key]) return;
-      seen[key] = true;
-      if (pantry[key]) {
-        n = pantry[key];
-      } else {
-        added.push(n);
-      }
-      ingredients.push(n);
-    });
-
-    rec.getRange(rec.getLastRow() + 1, 1, 1, 6).setValues([[
-      sheetText_(name), sheetText_(link), prep, sheetText_(dish), sheetText_(protein),
-      sheetText_(ingredients.join(', '))
-    ]]);
-    if (added.length) {
-      ing.getRange(ing.getLastRow() + 1, 1, added.length, 3).setValues(added.map(function (n) {
-        return [sheetText_(n), 'Uncategorized', 'Have It'];
-      }));
-    }
-    return {
-      ok: true,
-      recipe: {
-        name: name, link: link, prepTime: prep || 0, dishCategory: dish,
-        protein: protein, ingredients: ingredients
-      },
-      added: added
-    };
+    if (findRecipeRow_(rec, r.name)) return { ok: false, reason: 'exists' };
+    var added = resolveIngredients_(ss, r);
+    rec.getRange(rec.getLastRow() + 1, 1, 1, 6).setValues([recipeRow_(r)]);
+    appendNewIngredients_(ss, added);
+    return { ok: true, recipe: recipeJson_(r), added: added };
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Overwrite the recipe currently named oldName with recipe (same shape as addRecipe).
+ * A rename is carried into the Week tab so planned dinners follow it.
+ */
+function updateRecipe(oldName, recipe) {
+  var r = cleanRecipe_(recipe);
+  if (!r.name) return { ok: false, reason: 'empty' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ss = SpreadsheetApp.getActive();
+    var rec = ss.getSheetByName(SHEET_REC);
+    var row = findRecipeRow_(rec, cleanText_(oldName));
+    if (!row) return { ok: false, reason: 'missing' };
+    var clash = findRecipeRow_(rec, r.name, row);
+    if (clash) return { ok: false, reason: 'exists' };
+
+    var storedName = String(rec.getRange(row, 1).getValue()).trim();
+    var added = resolveIngredients_(ss, r);
+    var values = recipeRow_(r);
+    rec.getRange(row, 1).setValue(values[0]);
+    rec.getRange(row, 3, 1, 4).setValues([values.slice(2)]);
+    // Only touch the link cell when it changed, so a hand-made hyperlink
+    // (display text + link) in the sheet survives an unrelated edit.
+    var cell = rec.getRange(row, 2);
+    var current = String(cell.getValue()).trim();
+    if (!/^https?:\/\//i.test(current)) {
+      var rich = cell.getRichTextValue();
+      if (rich && rich.getLinkUrl()) current = rich.getLinkUrl();
+    }
+    if (current !== r.link) cell.setValue(values[1]);
+    appendNewIngredients_(ss, added);
+
+    var weekUpdated = 0;
+    if (storedName !== r.name) {
+      var week = ss.getSheetByName(SHEET_WEEK);
+      if (week && week.getLastRow() >= 2) {
+        week.getRange(2, 3, week.getLastRow() - 1, 1).getValues().forEach(function (v, i) {
+          if (String(v[0]).trim() === storedName) {
+            week.getRange(i + 2, 3).setValue(values[0]);
+            weekUpdated++;
+          }
+        });
+      }
+    }
+    return { ok: true, recipe: recipeJson_(r), added: added, weekUpdated: weekUpdated };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Trim/validate a recipe sent by the app. */
+function cleanRecipe_(recipe) {
+  recipe = recipe || {};
+  var prep = Math.round(Number(recipe.prepTime));
+  return {
+    name: cleanText_(recipe.name),
+    link: cleanText_(recipe.link),
+    prepTime: prep > 0 ? prep : '',
+    dishCategory: cleanText_(recipe.dishCategory) || 'Other',
+    protein: cleanText_(recipe.protein) || 'Other',
+    ingredients: (recipe.ingredients || []).map(function (n) {
+      return cleanText_(n).replace(/,/g, '');
+    })
+  };
+}
+
+/** Row number of the recipe named name (case-insensitive), skipping exceptRow; 0 if none. */
+function findRecipeRow_(rec, name, exceptRow) {
+  if (rec.getLastRow() < 2) return 0;
+  var key = name.toLowerCase();
+  var names = rec.getRange(2, 1, rec.getLastRow() - 1, 1).getValues();
+  for (var i = 0; i < names.length; i++) {
+    if (i + 2 !== exceptRow && String(names[i][0]).trim().toLowerCase() === key) return i + 2;
+  }
+  return 0;
+}
+
+/**
+ * Dedupe r.ingredients and match them to the pantry's spelling (in place).
+ * Returns the names the pantry doesn't have yet.
+ */
+function resolveIngredients_(ss, r) {
+  var ing = ss.getSheetByName(SHEET_ING);
+  var pantry = {}; // lowercase -> pantry spelling
+  if (ing.getLastRow() >= 2) {
+    ing.getRange(2, 1, ing.getLastRow() - 1, 1).getValues().forEach(function (v) {
+      var n = String(v[0]).trim();
+      if (n) pantry[n.toLowerCase()] = n;
+    });
+  }
+  var out = [];
+  var added = [];
+  var seen = {};
+  r.ingredients.forEach(function (n) {
+    var key = n.toLowerCase();
+    if (!n || seen[key]) return;
+    seen[key] = true;
+    if (pantry[key]) n = pantry[key];
+    else added.push(n);
+    out.push(n);
+  });
+  r.ingredients = out;
+  return added;
+}
+
+function appendNewIngredients_(ss, names) {
+  if (!names.length) return;
+  var ing = ss.getSheetByName(SHEET_ING);
+  ing.getRange(ing.getLastRow() + 1, 1, names.length, 3).setValues(names.map(function (n) {
+    return [sheetText_(n), 'Uncategorized', 'Have It'];
+  }));
+}
+
+function recipeRow_(r) {
+  return [sheetText_(r.name), sheetText_(r.link), r.prepTime, sheetText_(r.dishCategory),
+    sheetText_(r.protein), sheetText_(r.ingredients.join(', '))];
+}
+
+function recipeJson_(r) {
+  return {
+    name: r.name, link: r.link, prepTime: r.prepTime || 0, dishCategory: r.dishCategory,
+    protein: r.protein, ingredients: r.ingredients
+  };
 }
 
 // ---------------------------------------------------------------- helpers
