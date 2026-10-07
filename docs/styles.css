@@ -146,6 +146,11 @@ body {
 .detail-top { display: flex; align-items: center; gap: 6px; padding: 2px 0 10px; }
 .back-btn { border: 0; background: none; font-size: 22px; cursor: pointer; padding: 4px 8px 4px 0; color: var(--ink); }
 .detail-top h2 { margin: 0; font-size: 20px; }
+.edit-btn {
+  margin-left: auto; flex-shrink: 0; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--card); color: var(--ink); cursor: pointer;
+  font-size: 13px; font-weight: 600; padding: 6px 12px;
+}
 .recipe-link {
   display: block; text-align: center; text-decoration: none;
   background: var(--accent); color: var(--accent-ink);
@@ -155,6 +160,53 @@ body {
 .recipe-link.disabled { background: var(--line); color: var(--muted); pointer-events: none; }
 .detail-actions { display: flex; gap: 10px; padding: 16px 0; }
 .detail-actions .btn { flex: 1; }
+
+/* ---------- pantry edit ---------- */
+.ing-edit { flex: 1; min-width: 0; cursor: pointer; }
+.edit-hint { color: var(--muted); opacity: .45; font-size: 13px; font-weight: 400; }
+.ing-edit:hover .edit-hint { opacity: 1; }
+.modal-note { font-size: 13px; color: var(--muted); margin: 0 0 4px; }
+
+/* ---------- new recipe form ---------- */
+.form-card { padding: 14px; }
+.field { display: block; margin-bottom: 12px; min-width: 0; }
+.field:last-child { margin-bottom: 0; }
+.field > span {
+  display: block; font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px;
+}
+.field em { font-style: normal; font-weight: 400; text-transform: none; letter-spacing: 0; }
+.field input, .field select, .ing-input {
+  width: 100%; padding: 11px 12px;
+  font-size: 16px; /* >= 16px stops iOS zooming on focus */
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--ink);
+}
+.field-row { display: flex; gap: 8px; }
+.field-row .field { flex: 1; margin-bottom: 0; }
+.field-row .field:first-child { flex: 0 0 84px; }
+.field-row select { padding-left: 8px; padding-right: 4px; }
+
+.ing-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ing-chips .hint { font-size: 13px; color: var(--muted); }
+.ing-chip {
+  border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--have); color: var(--have-ink);
+  font-size: 14px; font-weight: 600; padding: 6px 10px 6px 12px;
+}
+.ing-chip.new { background: var(--low); color: var(--low-ink); }
+.ing-chip small { font-weight: 400; opacity: .8; }
+.ing-chip .x { opacity: .6; margin-left: 2px; }
+
+.suggest { display: flex; flex-direction: column; }
+.suggest:not(:empty) { margin-top: 6px; }
+.suggest-item {
+  border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer;
+  text-align: left; font-size: 15px; color: var(--ink); padding: 11px 4px;
+}
+.suggest-item:last-child { border-bottom: 0; }
+.suggest-item small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.suggest-item.add { color: var(--accent); font-weight: 600; }
 
 /* ---------- week ---------- */
 .week-day { min-height: 64px; }

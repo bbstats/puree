@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#2f6f4f">
   <title>Puree</title>
   <!-- Bump ?v= on every deploy so phones don't serve stale cached copies -->
-  <link rel="stylesheet" href="styles.css?v=20260828b">
+  <link rel="stylesheet" href="styles.css?v=20261007b">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icon-192.png">
   <link rel="apple-touch-icon" href="icon-192.png">
@@ -37,6 +37,7 @@
       <section id="view-week" class="view" hidden></section>
       <section id="view-shop" class="view" hidden></section>
       <section id="view-meal" class="view" hidden></section>
+      <section id="view-recipe" class="view" hidden></section>
     </main>
 
     <nav id="tabbar">
@@ -68,11 +69,23 @@
         <button class="btn primary" id="addConfirm">Add</button>
       </div>
     </div>
+
+    <!-- Edit-ingredient popup -->
+    <div id="editModal" class="modal" hidden>
+      <h2>Edit ingredient</h2>
+      <input type="text" id="editName" placeholder="Ingredient name" autocomplete="off">
+      <select id="editCategory"></select>
+      <p class="modal-note" id="editNote" hidden></p>
+      <div class="modal-actions">
+        <button class="btn ghost" id="editCancel">Cancel</button>
+        <button class="btn primary" id="editConfirm">Save</button>
+      </div>
+    </div>
   </div>
 
   <div id="loading" hidden><div class="spinner"></div><p>Loading your kitchen…</p></div>
   <div id="toast" hidden></div>
 
-  <script src="app.js?v=20260828b"></script>
+  <script src="app.js?v=20261007b"></script>
 </body>
 </html>

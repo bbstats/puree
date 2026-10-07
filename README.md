@@ -24,6 +24,9 @@ per household: anyone with the household's app link sees and edits the same data
   `clasp deploy --deploymentId <id>` to update the same `/exec` URL.
   Run clasp from `C:\Users\Nathan\Documents\puree` (capital D — clasp rejects the
   lowercase path as a symlink).
+  No local machine handy? A Claude Code cloud session can do it: `clasp login --no-localhost`,
+  approve in the browser, paste the `localhost:8888/?code=…` URL back. The Script ID is in
+  the Apps Script editor → ⚙️ Project Settings; `clasp list-deployments` finds the deployment.
 
 ## What's in here
 
@@ -112,7 +115,7 @@ If you later change the code, push again (`clasp push -f`) and use
   cookbook page, or a Google Doc with the recipe typed out.
 - **Ingredients** is a comma-separated list. Names should match the `Ingredients` tab; if you
   use a new name, the app auto-adds it to the pantry as **Uncategorized / Have It** — set its
-  real category in the sheet when you notice it.
+  real category in the app (tap its name in Pantry) or in the sheet.
 
 ### `Week`
 Written by the app when you hit **Plan**. You normally don't touch it, but you can.
@@ -125,8 +128,14 @@ and it shows up everywhere — no code changes.
 ## Using the app
 
 - **Pantry** — filter by category/status, sort by category, status, or name. Tap a status
-  pill to cycle Have It → Running Low → Out.
-- **Meals** — filter by cuisine/protein, sort by prep time. Each card shows how many
+  pill to cycle Have It → Running Low → Out. Tap an ingredient's name (✎) to rename it or
+  change its category; a rename also updates every recipe that uses it.
+- **Meals** — filter by cuisine/protein, sort by prep time. **+ Add recipe** (bottom of the
+  list) takes a name, optional link, prep time, cuisine, protein, and ingredients — pick
+  them from your pantry as you type, or type new ones (they join the pantry as
+  Uncategorized / Have It). An unfinished recipe is kept until you save or cancel it.
+  On a meal's screen, **✎ Edit** opens the same form to fix anything; renaming a recipe
+  carries the new name into the Week tab. Each card shows how many
   ingredients you're missing. Tap a meal: recipe link at the very top, ingredients listed
   most-needed first, tap pills to adjust availability. **Save** updates the pantry;
   **Plan** updates the pantry *and* asks which day — "Choose for me" (default) picks a
