@@ -28,6 +28,8 @@
   var mealOrder = [];         // snapshot ordering of detail ingredient list
   var cameFrom = 'meals';
   var pendingDay = null;      // day tapped from an empty Week slot; preselects it when planning
+  var draft = null;           // in-progress new recipe (kept until saved or cancelled)
+  var editingIng = null;      // pantry name being edited in the edit popup
   var savingCount = 0;
 
   var $ = function (id) { return document.getElementById(id); };
@@ -78,10 +80,13 @@
   function nextStatus(s) {
     return STATUS_ORDER[(STATUS_ORDER.indexOf(s) + 1) % 3];
   }
-  function pantryStatus(name) {
-    var hit = db.ingredients.filter(function (i) {
+  function findIngredient(name) {
+    return db.ingredients.filter(function (i) {
       return i.name.toLowerCase() === name.toLowerCase();
     })[0];
+  }
+  function pantryStatus(name) {
+    var hit = findIngredient(name);
     return hit ? hit.status : 'Have It';
   }
   function shortDate(iso) { // '2026-08-30' -> '8/30'
@@ -111,21 +116,22 @@
 
   function switchTab(tab) {
     // A day tapped in Week only stays "pending" while picking a meal for it
-    if (tab !== 'meals' && tab !== 'meal') pendingDay = null;
+    if (tab !== 'meals' && tab !== 'meal' && tab !== 'recipe') pendingDay = null;
     currentTab = tab;
-    ['pantry', 'meals', 'week', 'shop', 'meal'].forEach(function (v) {
+    ['pantry', 'meals', 'week', 'shop', 'meal', 'recipe'].forEach(function (v) {
       $('view-' + v).hidden = (v !== tab);
     });
     document.querySelectorAll('.tab').forEach(function (b) {
       b.classList.toggle('active', b.dataset.tab === tab);
     });
-    var titles = { pantry: 'Pantry', meals: 'Meals', week: 'This Week', shop: 'Needed This Week', meal: 'Meal' };
+    var titles = { pantry: 'Pantry', meals: 'Meals', week: 'This Week', shop: 'Needed This Week', meal: 'Meal', recipe: '' };
     $('viewTitle').textContent = tab === 'meal' && openRecipe ? '' : titles[tab];
     if (tab === 'pantry') renderPantry();
     if (tab === 'meals') renderMeals();
     if (tab === 'week') renderWeek();
     if (tab === 'shop') renderShop();
     if (tab === 'meal') renderMealDetail();
+    if (tab === 'recipe') renderRecipeForm();
     window.scrollTo(0, 0);
   }
 
@@ -191,10 +197,14 @@
     view.querySelectorAll('.pill[data-ing]').forEach(function (btn) {
       btn.addEventListener('click', function () { cyclePantry(btn.dataset.ing); });
     });
+    view.querySelectorAll('.ing-edit[data-ing]').forEach(function (el) {
+      el.addEventListener('click', function () { openEditModal(el.dataset.ing); });
+    });
   }
 
   function pantryRow(i, showCat) {
-    return '<div class="row"><div><div class="name">' + esc(i.name) + '</div>' +
+    return '<div class="row"><div class="ing-edit" data-ing="' + esc(i.name) + '">' +
+      '<div class="name">' + esc(i.name) + ' <span class="edit-hint">✎</span></div>' +
       (showCat ? '<div class="sub">' + esc(i.category) + '</div>' : '') + '</div>' +
       '<button class="pill ' + statusClass(i.status) + '" data-ing="' + esc(i.name) + '">' +
       esc(i.status) + '</button></div>';
@@ -233,6 +243,8 @@
   }
 
   $('addCancel').onclick = hideModals;
+  $('addName').onkeydown = function (e) { if (e.key === 'Enter') $('addConfirm').click(); };
+  $('editName').onkeydown = function (e) { if (e.key === 'Enter') $('editConfirm').click(); };
   $('addConfirm').onclick = function () {
     var name = $('addName').value.trim();
     var category = $('addCategory').value;
@@ -249,6 +261,74 @@
       toast('Could not add — ' + (e.message || 'try again'));
     });
   };
+
+  // ------------------------------------------------------------ edit ingredient
+
+  function categoryOptions(selected) {
+    var cats = db.lists.ingredientCategories.slice();
+    if (selected && cats.indexOf(selected) === -1) cats.push(selected);
+    return cats.map(function (c) {
+      return '<option' + (c === selected ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+  }
+
+  function recipesUsing(name) {
+    return db.recipes.filter(function (r) {
+      return r.ingredients.some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
+    });
+  }
+
+  function openEditModal(name) {
+    var item = findIngredient(name);
+    if (!item) return;
+    editingIng = item.name;
+    $('editName').value = item.name;
+    $('editCategory').innerHTML = categoryOptions(item.category);
+    var n = recipesUsing(item.name).length;
+    $('editNote').hidden = !n;
+    $('editNote').textContent = 'Renaming also updates the ' + n + ' recipe' + (n === 1 ? '' : 's') + ' that use it.';
+    showModal('editModal');
+  }
+
+  $('editCancel').onclick = hideModals;
+  $('editConfirm').onclick = function () {
+    var oldName = editingIng;
+    var item = findIngredient(oldName);
+    var newName = $('editName').value.replace(/,/g, '').replace(/\s+/g, ' ').trim();
+    var category = $('editCategory').value;
+    if (!item || !newName) return;
+    if (newName === item.name && category === item.category) { hideModals(); return; }
+    var clash = findIngredient(newName);
+    if (clash && clash !== item) {
+      toast('"' + clash.name + '" is already in the pantry');
+      return;
+    }
+    hideModals();
+    // Apply locally (pantry + recipe lists), then sync; on failure reload from the sheet.
+    recipesUsing(oldName).forEach(function (r) {
+      r.ingredients = r.ingredients.map(function (n) {
+        return n.toLowerCase() === oldName.toLowerCase() ? newName : n;
+      });
+    });
+    item.name = newName;
+    item.category = category;
+    renderPantry();
+    call('updateIngredient', oldName, newName, category).then(function (r) {
+      if (r && r.ok) {
+        toast('Saved ' + newName);
+        return;
+      }
+      toast(r && r.reason === 'exists' ? '"' + newName + '" is already in the pantry' : 'Could not save — try again');
+      return resync();
+    }).catch(function (e) {
+      toast('Could not save — ' + (e.message || 'try again'));
+      return resync();
+    });
+  };
+
+  function resync() {
+    return loadData().then(function () { switchTab(currentTab); }).catch(function () {});
+  }
 
   // ------------------------------------------------------------ meals list
 
@@ -269,7 +349,7 @@
       '</div>';
 
     if (!recipes.length) {
-      html += '<div class="empty">No meals match. Add recipes in the Google Sheet\'s Recipes tab.</div>';
+      html += '<div class="empty">No meals match. Add one below.</div>';
     } else {
       html += recipes.map(function (r) {
         var out = 0, low = 0;
@@ -292,13 +372,225 @@
           '</div>' + warn + '</div>';
       }).join('');
     }
+    html += '<div class="fab-row"><button class="btn primary wide" id="addRecipeBtn">' +
+      (draft ? '✎ Continue new recipe' : '+ Add recipe') + '</button></div>';
     view.innerHTML = html;
 
+    $('addRecipeBtn').onclick = openRecipeForm;
     $('mf-cat').onchange = function () { mealFilter.dishCategory = this.value; renderMeals(); };
     $('mf-prot').onchange = function () { mealFilter.protein = this.value; renderMeals(); };
     $('mf-sort').onchange = function () { mealFilter.sort = this.value; renderMeals(); };
     view.querySelectorAll('.meal-card').forEach(function (card) {
       card.addEventListener('click', function () { openMeal(card.dataset.recipe, 'meals'); });
+    });
+  }
+
+  // ------------------------------------------------------------ new recipe form
+
+  function openRecipeForm() {
+    if (!draft) {
+      var pick = function (list) { return list.indexOf('Other') !== -1 ? 'Other' : (list[0] || ''); };
+      draft = {
+        name: '', link: '', prepTime: '',
+        dishCategory: mealFilter.dishCategory !== 'All' ? mealFilter.dishCategory : pick(db.lists.dishCategories),
+        protein: mealFilter.protein !== 'All' ? mealFilter.protein : pick(db.lists.proteins),
+        ingredients: []
+      };
+    }
+    switchTab('recipe');
+  }
+
+  function draftIsEmpty() {
+    return !draft || (!draft.name && !draft.link && !draft.prepTime && !draft.ingredients.length);
+  }
+
+  function renderRecipeForm() {
+    var view = $('view-recipe');
+    if (!draft) { view.innerHTML = ''; return; }
+    view.innerHTML =
+      '<div class="detail-top"><button class="back-btn" id="rfBack">←</button><h2>New recipe</h2></div>' +
+      '<div class="card form-card">' +
+        '<label class="field"><span>Name</span>' +
+          '<input type="text" id="rfName" autocomplete="off" placeholder="e.g. Chicken Tacos"></label>' +
+        '<label class="field"><span>Recipe link <em>optional</em></span>' +
+          '<input type="url" id="rfLink" autocomplete="off" placeholder="Website, Google Photos, or Doc link"></label>' +
+        '<div class="field-row">' +
+          '<label class="field"><span>Prep (min)</span>' +
+            '<input type="number" id="rfPrep" inputmode="numeric" min="0" step="5"></label>' +
+          '<label class="field"><span>Cuisine</span>' +
+            selectHtml('rfCat', db.lists.dishCategories, draft.dishCategory) + '</label>' +
+          '<label class="field"><span>Protein</span>' +
+            selectHtml('rfProt', db.lists.proteins, draft.protein) + '</label>' +
+        '</div>' +
+      '</div>' +
+      '<div class="group-head">Ingredients</div>' +
+      '<div class="card form-card">' +
+        '<div id="rfChips" class="ing-chips"></div>' +
+        '<input type="text" id="rfIng" class="ing-input" autocomplete="off" enterkeyhint="enter" ' +
+          'placeholder="Type an ingredient, then Enter">' +
+        '<div id="rfSuggest" class="suggest"></div>' +
+      '</div>' +
+      '<div class="detail-actions">' +
+        '<button class="btn ghost" id="rfCancel">Cancel</button>' +
+        '<button class="btn primary" id="rfSave">Save recipe</button>' +
+      '</div>';
+
+    // Values go in via .value so nothing typed needs HTML escaping
+    $('rfName').value = draft.name;
+    $('rfLink').value = draft.link;
+    $('rfPrep').value = draft.prepTime;
+    $('rfName').oninput = function () { draft.name = this.value; };
+    $('rfLink').oninput = function () { draft.link = this.value; };
+    $('rfPrep').oninput = function () { draft.prepTime = this.value; };
+    // If a saved choice was since removed from the Lists tab, keep what's on screen
+    draft.dishCategory = $('rfCat').value;
+    draft.protein = $('rfProt').value;
+    $('rfCat').onchange = function () { draft.dishCategory = this.value; };
+    $('rfProt').onchange = function () { draft.protein = this.value; };
+
+    var ingInput = $('rfIng');
+    ingInput.oninput = function () {
+      // Typing or pasting commas splits into separate ingredients
+      if (this.value.indexOf(',') !== -1) {
+        var parts = this.value.split(',');
+        var rest = parts.pop();
+        parts.forEach(addDraftIngredient);
+        this.value = rest.replace(/^\s+/, '');
+        renderDraftChips();
+      }
+      renderSuggestions();
+    };
+    ingInput.onkeydown = function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (addDraftIngredient(this.value)) this.value = '';
+        renderDraftChips();
+        renderSuggestions();
+      }
+    };
+
+    $('rfBack').onclick = function () { switchTab('meals'); };
+    $('rfCancel').onclick = function () {
+      if (!draftIsEmpty() && !confirm('Discard this recipe?')) return;
+      draft = null;
+      switchTab('meals');
+    };
+    $('rfSave').onclick = saveRecipe;
+
+    renderDraftChips();
+    renderSuggestions();
+  }
+
+  /** Add an ingredient to the draft, using the pantry's spelling when it matches. */
+  function addDraftIngredient(raw) {
+    var name = String(raw).replace(/\s+/g, ' ').trim();
+    if (!name) return false;
+    var known = findIngredient(name);
+    if (known) name = known.name;
+    var dup = draft.ingredients.some(function (n) { return n.toLowerCase() === name.toLowerCase(); });
+    if (!dup) draft.ingredients.push(name);
+    return true;
+  }
+
+  function renderDraftChips() {
+    var box = $('rfChips');
+    box.innerHTML = draft.ingredients.length
+      ? draft.ingredients.map(function (n, idx) {
+          var isNew = !findIngredient(n);
+          return '<button class="ing-chip' + (isNew ? ' new' : '') + '" data-idx="' + idx + '" title="Remove">' +
+            esc(n) + (isNew ? ' <small>new</small>' : '') + ' <span class="x">✕</span></button>';
+        }).join('')
+      : '<div class="hint">No ingredients yet. Pick from your pantry or type new ones.</div>';
+    box.querySelectorAll('.ing-chip').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        draft.ingredients.splice(Number(btn.dataset.idx), 1);
+        renderDraftChips();
+        renderSuggestions();
+      });
+    });
+  }
+
+  function renderSuggestions() {
+    var box = $('rfSuggest');
+    var q = $('rfIng').value.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (!q) { box.innerHTML = ''; return; }
+    var chosen = {};
+    draft.ingredients.forEach(function (n) { chosen[n.toLowerCase()] = true; });
+    var matches = db.ingredients.filter(function (i) {
+      var k = i.name.toLowerCase();
+      return !chosen[k] && k.indexOf(q) !== -1;
+    }).sort(function (a, b) {
+      var as = a.name.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+      var bs = b.name.toLowerCase().indexOf(q) === 0 ? 0 : 1;
+      return as - bs || a.name.localeCompare(b.name);
+    }).slice(0, 6);
+    var exact = findIngredient(q) || chosen[q];
+    var typed = $('rfIng').value.replace(/\s+/g, ' ').trim();
+    box.innerHTML = matches.map(function (i) {
+      return '<button class="suggest-item" data-name="' + esc(i.name) + '">' + esc(i.name) +
+        ' <small>' + esc(i.category) + '</small></button>';
+    }).join('') + (exact ? '' :
+      '<button class="suggest-item add" data-name="' + esc(typed) + '">+ Add "' + esc(typed) + '" (new)</button>');
+    box.querySelectorAll('.suggest-item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        addDraftIngredient(btn.dataset.name);
+        $('rfIng').value = '';
+        renderDraftChips();
+        renderSuggestions();
+        $('rfIng').focus();
+      });
+    });
+  }
+
+  function saveRecipe() {
+    // Anything still sitting in the ingredient box counts
+    if (addDraftIngredient($('rfIng').value)) $('rfIng').value = '';
+    var name = draft.name.replace(/\s+/g, ' ').trim();
+    if (!name) {
+      toast('Give the recipe a name');
+      $('rfName').focus();
+      return;
+    }
+    var taken = db.recipes.filter(function (r) { return r.name.toLowerCase() === name.toLowerCase(); })[0];
+    if (taken) {
+      toast('"' + taken.name + '" already exists');
+      return;
+    }
+    var link = draft.link.trim();
+    if (link && !/^[a-z][a-z0-9+.-]*:/i.test(link)) link = 'https://' + link;
+
+    var btn = $('rfSave');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    var done = function () { btn.disabled = false; btn.textContent = 'Save recipe'; };
+    call('addRecipe', {
+      name: name,
+      link: link,
+      prepTime: draft.prepTime,
+      dishCategory: draft.dishCategory,
+      protein: draft.protein,
+      ingredients: draft.ingredients
+    }).then(function (r) {
+      done();
+      if (r && r.ok) {
+        db.recipes.push(r.recipe);
+        (r.added || []).forEach(function (n) {
+          if (!findIngredient(n)) db.ingredients.push({ name: n, category: 'Uncategorized', status: 'Have It' });
+        });
+        draft = null;
+        toast(r.added && r.added.length
+          ? 'Saved! ' + r.added.length + ' new ingredient' + (r.added.length === 1 ? '' : 's') +
+            ' added to Pantry as Uncategorized'
+          : 'Saved ' + r.recipe.name);
+        openMeal(r.recipe.name, 'meals');
+      } else if (r && r.reason === 'exists') {
+        toast('"' + name + '" already exists');
+      } else {
+        toast('Could not save — try again');
+      }
+    }).catch(function (e) {
+      done();
+      toast('Could not save — ' + (e.message || 'try again'));
     });
   }
 
@@ -550,7 +842,7 @@
 
   function showModal(id) {
     $('overlay').hidden = false;
-    ['planModal', 'addModal'].forEach(function (m) { $(m).hidden = (m !== id); });
+    ['planModal', 'addModal', 'editModal'].forEach(function (m) { $(m).hidden = (m !== id); });
   }
   function hideModals() { $('overlay').hidden = true; }
   $('overlay').addEventListener('click', function (e) {
@@ -624,10 +916,11 @@
   else showConnect();
 
   // Re-sync when the tab regains focus (e.g. spouse changed something),
-  // unless mid-edit in the meal detail view.
+  // unless mid-edit (meal detail, new-recipe form, or an open popup).
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && db && currentTab !== 'meal') {
-      loadData().then(function () { switchTab(currentTab); }).catch(function () {});
+    if (document.visibilityState === 'visible' && db && currentTab !== 'meal' &&
+        currentTab !== 'recipe' && $('overlay').hidden) {
+      resync();
     }
   });
 

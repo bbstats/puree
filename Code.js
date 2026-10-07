@@ -1,7 +1,7 @@
 /**
  * Household Meal Planner — server side.
  * Bound to a Google Spreadsheet that acts as the database.
- * v5
+ * v6
  */
 
 var SHEET_ING = 'Ingredients';
@@ -41,7 +41,9 @@ var API = {
   saveStatuses: function (changes) { return saveStatuses(changes); },
   planMeal: function (recipeName, choice, allowReplace) { return planMeal(recipeName, choice, allowReplace); },
   unplanMeal: function (date) { return unplanMeal(date); },
-  addIngredient: function (name, category) { return addIngredient(name, category); }
+  addIngredient: function (name, category) { return addIngredient(name, category); },
+  updateIngredient: function (oldName, newName, category) { return updateIngredient(oldName, newName, category); },
+  addRecipe: function (recipe) { return addRecipe(recipe); }
 };
 
 function doPost(e) {
@@ -479,7 +481,147 @@ function addIngredient(name, category) {
   }
 }
 
+/**
+ * Rename and/or recategorize a pantry ingredient. A rename is carried into every
+ * recipe that lists the old name, so the old name doesn't get auto-recreated.
+ */
+function updateIngredient(oldName, newName, category) {
+  oldName = cleanText_(oldName);
+  newName = cleanText_(newName).replace(/,/g, '');
+  category = cleanText_(category) || 'Uncategorized';
+  if (!newName) return { ok: false, reason: 'empty' };
+  var oldKey = oldName.toLowerCase();
+  var newKey = newName.toLowerCase();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ss = SpreadsheetApp.getActive();
+    var sh = ss.getSheetByName(SHEET_ING);
+    var names = sh.getLastRow() >= 2 ? sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues() : [];
+    var row = 0;
+    for (var i = 0; i < names.length; i++) {
+      var key = String(names[i][0]).trim().toLowerCase();
+      if (key === oldKey && !row) row = i + 2;
+      else if (key === newKey && newKey !== oldKey) return { ok: false, reason: 'exists' };
+    }
+    if (!row) return { ok: false, reason: 'missing' };
+    sh.getRange(row, 1, 1, 2).setValues([[sheetText_(newName), sheetText_(category)]]);
+    var recipesUpdated = newName !== oldName ? renameInRecipes_(ss, oldKey, newName) : 0;
+    return { ok: true, recipesUpdated: recipesUpdated };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Replace ingredient oldKey (lowercase) with newName in every recipe's list. */
+function renameInRecipes_(ss, oldKey, newName) {
+  var sh = ss.getSheetByName(SHEET_REC);
+  if (!sh || sh.getLastRow() < 2) return 0;
+  var values = sh.getRange(2, 6, sh.getLastRow() - 1, 1).getValues();
+  var count = 0;
+  values.forEach(function (r, i) {
+    var hit = false;
+    var parts = String(r[0]).split(',')
+      .map(function (s) { return s.trim(); })
+      .filter(function (s) { return s !== ''; })
+      .map(function (s) {
+        if (s.toLowerCase() !== oldKey) return s;
+        hit = true;
+        return newName;
+      });
+    if (hit) {
+      sh.getRange(i + 2, 6).setValue(sheetText_(parts.join(', ')));
+      count++;
+    }
+  });
+  return count;
+}
+
+/**
+ * Append a recipe: {name, link, prepTime, dishCategory, protein, ingredients: [names]}.
+ * Ingredient names are matched to the pantry's spelling; unknown ones are added to
+ * the pantry as Uncategorized / Have It.
+ */
+function addRecipe(recipe) {
+  recipe = recipe || {};
+  var name = cleanText_(recipe.name);
+  if (!name) return { ok: false, reason: 'empty' };
+  var link = cleanText_(recipe.link);
+  var prep = Math.round(Number(recipe.prepTime));
+  if (!(prep > 0)) prep = '';
+  var dish = cleanText_(recipe.dishCategory) || 'Other';
+  var protein = cleanText_(recipe.protein) || 'Other';
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ss = SpreadsheetApp.getActive();
+    var rec = ss.getSheetByName(SHEET_REC);
+    if (rec.getLastRow() >= 2) {
+      var existing = rec.getRange(2, 1, rec.getLastRow() - 1, 1).getValues();
+      for (var i = 0; i < existing.length; i++) {
+        if (String(existing[i][0]).trim().toLowerCase() === name.toLowerCase()) {
+          return { ok: false, reason: 'exists' };
+        }
+      }
+    }
+
+    var ing = ss.getSheetByName(SHEET_ING);
+    var pantry = {}; // lowercase -> pantry spelling
+    if (ing.getLastRow() >= 2) {
+      ing.getRange(2, 1, ing.getLastRow() - 1, 1).getValues().forEach(function (r) {
+        var n = String(r[0]).trim();
+        if (n) pantry[n.toLowerCase()] = n;
+      });
+    }
+    var ingredients = [];
+    var added = [];
+    var seen = {};
+    (recipe.ingredients || []).forEach(function (raw) {
+      var n = cleanText_(raw).replace(/,/g, '');
+      var key = n.toLowerCase();
+      if (!n || seen[key]) return;
+      seen[key] = true;
+      if (pantry[key]) {
+        n = pantry[key];
+      } else {
+        added.push(n);
+      }
+      ingredients.push(n);
+    });
+
+    rec.getRange(rec.getLastRow() + 1, 1, 1, 6).setValues([[
+      sheetText_(name), sheetText_(link), prep, sheetText_(dish), sheetText_(protein),
+      sheetText_(ingredients.join(', '))
+    ]]);
+    if (added.length) {
+      ing.getRange(ing.getLastRow() + 1, 1, added.length, 3).setValues(added.map(function (n) {
+        return [sheetText_(n), 'Uncategorized', 'Have It'];
+      }));
+    }
+    return {
+      ok: true,
+      recipe: {
+        name: name, link: link, prepTime: prep || 0, dishCategory: dish,
+        protein: protein, ingredients: ingredients
+      },
+      added: added
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 // ---------------------------------------------------------------- helpers
+
+function cleanText_(v) {
+  return String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+}
+
+/** Keep user text literal: a leading = + - @ would otherwise be parsed as a formula. */
+function sheetText_(s) {
+  return /^[=+\-@]/.test(s) ? "'" + s : s;
+}
 
 function normalizeStatus_(v) {
   var s = String(v).trim().toLowerCase();
