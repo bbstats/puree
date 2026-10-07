@@ -20,7 +20,10 @@ per household: anyone with the household's app link sees and edits the same data
   assets with `max-age=600`, so **bump the `?v=` on the `styles.css` / `app.js` tags in
   `docs/index.html`** whenever you change them, or phones will run stale code for up to
   10 minutes.
-- **Server (`Code.js` etc.)**: `clasp push -f` then
+- **Server (`Code.js` etc.)**: deployed automatically on merge to `main` by
+  `.github/workflows/deploy-apps-script.yml` (needs the `CLASP_CONFIG` repo secret — see the
+  comment at the top of that file; Actions tab → *Deploy Apps Script* → *Run workflow* to
+  redeploy by hand). Manual fallback: `clasp push -f` then
   `clasp deploy --deploymentId <id>` to update the same `/exec` URL.
   Run clasp from `C:\Users\Nathan\Documents\puree` (capital D — clasp rejects the
   lowercase path as a symlink).

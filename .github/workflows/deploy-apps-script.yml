@@ -1,0 +1,42 @@
+# Pushes the Apps Script server (Code.js + root .html files) to Google and points
+# the household's existing /exec deployment at the new version, on every merge to
+# main that touches them. GitHub Pages already handles docs/ on its own.
+#
+# Needs one repo secret, CLASP_CONFIG (Settings → Secrets and variables → Actions):
+#   {"clasprc": <contents of ~/.clasprc.json after `clasp login`>,
+#    "scriptId": "<Apps Script → Project Settings → Script ID>",
+#    "deploymentId": "<the id in https://script.google.com/macros/s/<id>/exec>"}
+name: Deploy Apps Script
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Code.js'
+      - 'appsscript.json'
+      - '*.html'
+      - '.claspignore'
+      - '.github/workflows/deploy-apps-script.yml'
+  workflow_dispatch:
+
+concurrency: deploy-apps-script
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install -g @google/clasp@3.4.1
+      - name: Write clasp config
+        env:
+          CLASP_CONFIG: ${{ secrets.CLASP_CONFIG }}
+        run: |
+          if [ -z "$CLASP_CONFIG" ]; then echo "::error::CLASP_CONFIG secret is not set"; exit 1; fi
+          echo "$CLASP_CONFIG" | jq -e '.clasprc' > ~/.clasprc.json
+          echo "$CLASP_CONFIG" | jq -e '{scriptId: .scriptId, rootDir: "."}' > .clasp.json
+          echo "DEPLOYMENT_ID=$(echo "$CLASP_CONFIG" | jq -er '.deploymentId')" >> "$GITHUB_ENV"
+      - run: clasp push -f
+      - run: clasp deploy -i "$DEPLOYMENT_ID" -d "GitHub ${GITHUB_SHA::7}"
